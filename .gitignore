@@ -3,3 +3,4 @@
 /output/frames/*.png
 /output/*.mp4
 !.gitkeep
+/docs/
