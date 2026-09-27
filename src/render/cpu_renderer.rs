@@ -1,4 +1,4 @@
-use super::{intersect_with_steps, Skybox};
+use super::{Light, Raytracer};
 use crate::core::{Camera, Vec3};
 use crate::materials::MaterialLibrary;
 use crate::scene::Scene;
@@ -109,6 +109,7 @@ fn render_rows(
     materials: &MaterialLibrary,
 ) -> usize {
     let mut total_dda_steps = 0;
+    let raytracer = Raytracer::new(scene, materials, Light::route_one_sun(), 3);
 
     for (local_y, row) in pixels.chunks_mut(width).enumerate() {
         let y = first_row + local_y;
@@ -117,15 +118,8 @@ fn render_rows(
         for (x, pixel) in row.iter_mut().enumerate() {
             let u = 2.0 * (x as f64 + 0.5) / width as f64 - 1.0;
             let ray = camera.get_ray(u, v);
-            let (hit, dda_steps) = intersect_with_steps(scene, &ray);
+            let (color, dda_steps) = raytracer.trace_with_steps(&ray, raytracer.max_depth);
             total_dda_steps += dda_steps;
-
-            let color = if let Some(hit) = hit {
-                let material = materials.get(hit.material);
-                super::shading::shade(material, hit.uv, hit.normal, -ray.dir)
-            } else {
-                Skybox.sample(ray.dir)
-            };
             *pixel = color_to_bgrx(color);
         }
     }
