@@ -6,11 +6,41 @@ const DIRECTION_EPSILON: f64 = 1.0e-12;
 const BOUNDARY_NUDGE: f64 = 1.0e-9;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Face {
+    NegativeX,
+    PositiveX,
+    NegativeY,
+    PositiveY,
+    NegativeZ,
+    PositiveZ,
+}
+
+impl Face {
+    fn from_normal(normal: Vec3) -> Self {
+        if normal.x < -0.5 {
+            Face::NegativeX
+        } else if normal.x > 0.5 {
+            Face::PositiveX
+        } else if normal.y < -0.5 {
+            Face::NegativeY
+        } else if normal.y > 0.5 {
+            Face::PositiveY
+        } else if normal.z < -0.5 {
+            Face::NegativeZ
+        } else {
+            Face::PositiveZ
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
     pub point: Vec3,
     pub normal: Vec3,
     pub uv: (f64, f64),
     pub material: MaterialId,
+    pub face: Face,
+    pub cell: (i32, i32, i32),
 }
 
 pub fn intersect(scene: &Scene, ray: &Ray) -> Option<Hit> {
@@ -79,12 +109,15 @@ pub fn intersect_with_steps(scene: &Scene, ray: &Ray) -> (Option<Hit>, usize) {
         steps += 1;
         if let Some(voxel) = scene.get(cell[0], cell[1], cell[2]) {
             let point = ray.at(hit_t);
+            let face = Face::from_normal(hit_normal);
             return (
                 Some(Hit {
                     point,
                     normal: hit_normal,
-                    uv: voxel.rotation_y.rotate_uv(face_uv(point, hit_normal)),
+                    uv: voxel.rotation_y.rotate_uv(face_uv(point, face)),
                     material: voxel.material,
+                    face,
+                    cell: (cell[0], cell[1], cell[2]),
                 }),
                 steps,
             );
@@ -160,13 +193,11 @@ fn opposing_axis_normal(direction: Vec3) -> Vec3 {
     }
 }
 
-fn face_uv(point: Vec3, normal: Vec3) -> (f64, f64) {
-    if normal.x.abs() > 0.5 {
-        (point.z.rem_euclid(1.0), point.y.rem_euclid(1.0))
-    } else if normal.y.abs() > 0.5 {
-        (point.x.rem_euclid(1.0), point.z.rem_euclid(1.0))
-    } else {
-        (point.x.rem_euclid(1.0), point.y.rem_euclid(1.0))
+fn face_uv(point: Vec3, face: Face) -> (f64, f64) {
+    match face {
+        Face::NegativeX | Face::PositiveX => (point.z.rem_euclid(1.0), point.y.rem_euclid(1.0)),
+        Face::NegativeY | Face::PositiveY => (point.x.rem_euclid(1.0), point.z.rem_euclid(1.0)),
+        Face::NegativeZ | Face::PositiveZ => (point.x.rem_euclid(1.0), point.y.rem_euclid(1.0)),
     }
 }
 
@@ -243,7 +274,7 @@ fn update_slab(
 
 #[cfg(test)]
 mod tests {
-    use super::{face_uv, intersect, intersect_aabb, intersect_with_steps, Hit};
+    use super::{face_uv, intersect, intersect_aabb, intersect_with_steps, Face, Hit};
     use crate::core::{Ray, Vec3};
     use crate::materials::MaterialId;
     use crate::scene::{RotationY, Scene, Voxel};
@@ -285,7 +316,7 @@ mod tests {
     #[test]
     fn uv_respects_voxel_rotation() {
         let point = Vec3::new(1.25, 2.75, 3.0);
-        let uv = face_uv(point, Vec3::new(0.0, 0.0, 1.0));
+        let uv = face_uv(point, Face::PositiveZ);
 
         assert_eq!(RotationY::Deg90.rotate_uv(uv), (0.75, 0.75));
     }
@@ -328,13 +359,16 @@ mod tests {
                         continue;
                     }
                     let point = ray.at(hit_t);
+                    let face = Face::from_normal(normal);
                     closest = Some((
                         hit_t,
                         Hit {
                             point,
                             normal,
-                            uv: voxel.rotation_y.rotate_uv(face_uv(point, normal)),
+                            uv: voxel.rotation_y.rotate_uv(face_uv(point, face)),
                             material: voxel.material,
+                            face,
+                            cell: (x, y, z),
                         },
                     ));
                 }

@@ -1,4 +1,4 @@
-use super::{Light, Raytracer};
+use super::{Raytracer, SceneMode};
 use crate::core::{Camera, Vec3};
 use crate::materials::MaterialLibrary;
 use crate::scene::Scene;
@@ -16,6 +16,16 @@ pub struct CpuRenderer {
     height: usize,
     worker_count: usize,
     rows_per_worker: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RenderContext<'a> {
+    width: usize,
+    height: usize,
+    scene: &'a Scene,
+    camera: &'a Camera,
+    materials: &'a MaterialLibrary,
+    mode: SceneMode,
 }
 
 impl CpuRenderer {
@@ -60,10 +70,19 @@ impl CpuRenderer {
         scene: &Scene,
         camera: &Camera,
         materials: &MaterialLibrary,
+        mode: SceneMode,
     ) -> RenderedFrame {
         let started = Instant::now();
         let mut pixels = vec![0; self.width * self.height];
         let chunk_size = self.rows_per_worker * self.width;
+        let context = RenderContext {
+            width: self.width,
+            height: self.height,
+            scene,
+            camera,
+            materials,
+            mode,
+        };
 
         let total_dda_steps = thread::scope(|scope| {
             let handles: Vec<_> = pixels
@@ -71,17 +90,7 @@ impl CpuRenderer {
                 .enumerate()
                 .map(|(worker, chunk)| {
                     let first_row = worker * self.rows_per_worker;
-                    scope.spawn(move || {
-                        render_rows(
-                            chunk,
-                            first_row,
-                            self.width,
-                            self.height,
-                            scene,
-                            camera,
-                            materials,
-                        )
-                    })
+                    scope.spawn(move || render_rows(chunk, first_row, context))
                 })
                 .collect();
 
@@ -99,25 +108,17 @@ impl CpuRenderer {
     }
 }
 
-fn render_rows(
-    pixels: &mut [u32],
-    first_row: usize,
-    width: usize,
-    height: usize,
-    scene: &Scene,
-    camera: &Camera,
-    materials: &MaterialLibrary,
-) -> usize {
+fn render_rows(pixels: &mut [u32], first_row: usize, context: RenderContext<'_>) -> usize {
     let mut total_dda_steps = 0;
-    let raytracer = Raytracer::new(scene, materials, Light::route_one_sun(), 3);
+    let raytracer = Raytracer::new(context.scene, context.materials, context.mode, 3);
 
-    for (local_y, row) in pixels.chunks_mut(width).enumerate() {
+    for (local_y, row) in pixels.chunks_mut(context.width).enumerate() {
         let y = first_row + local_y;
-        let v = 1.0 - 2.0 * (y as f64 + 0.5) / height as f64;
+        let v = 1.0 - 2.0 * (y as f64 + 0.5) / context.height as f64;
 
         for (x, pixel) in row.iter_mut().enumerate() {
-            let u = 2.0 * (x as f64 + 0.5) / width as f64 - 1.0;
-            let ray = camera.get_ray(u, v);
+            let u = 2.0 * (x as f64 + 0.5) / context.width as f64 - 1.0;
+            let ray = context.camera.get_ray(u, v);
             let (color, dda_steps) = raytracer.trace_with_steps(&ray, raytracer.max_depth);
             total_dda_steps += dda_steps;
             *pixel = color_to_bgrx(color);
@@ -145,6 +146,7 @@ mod tests {
     use super::CpuRenderer;
     use crate::core::{Camera, Vec3};
     use crate::materials::MaterialLibrary;
+    use crate::render::SceneMode;
     use crate::scene::Scene;
 
     #[test]
@@ -154,7 +156,7 @@ mod tests {
         let materials = MaterialLibrary::load_all().expect("project textures should load");
         let camera = Camera::new(Vec3::new(2.0, 1.0, 2.0), 0.0, 0.2, 6.0, 60.0, 17.0 / 11.0);
 
-        let frame = renderer.render(&scene, &camera, &materials);
+        let frame = renderer.render(&scene, &camera, &materials, SceneMode::Day);
 
         assert_eq!(frame.pixels.len(), 17 * 11);
         assert!(renderer.worker_count() <= 11);

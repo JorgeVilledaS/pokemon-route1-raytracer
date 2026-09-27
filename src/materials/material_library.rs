@@ -87,7 +87,7 @@ impl MaterialLibrary {
             kr: 0.0,
             kt: 0.0,
             ior: 1.0,
-            emissive: Vec3::new(0.03, 0.015, 0.005),
+            emissive: Vec3::new(0.8, 0.18, 0.03),
             normal_map: None,
         };
         let air = Material {

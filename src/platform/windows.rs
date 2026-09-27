@@ -1,6 +1,6 @@
 use crate::core::{Camera, Vec3};
 use crate::materials::MaterialLibrary;
-use crate::render::CpuRenderer;
+use crate::render::{CpuRenderer, SceneMode};
 use crate::scene::Scene;
 use std::ffi::c_void;
 use std::io;
@@ -34,6 +34,7 @@ const VK_DOWN: i32 = 0x28;
 const VK_LBUTTON: i32 = 0x01;
 const VK_A: i32 = 0x41;
 const VK_D: i32 = 0x44;
+const VK_N: i32 = 0x4E;
 const VK_R: i32 = 0x52;
 const VK_S: i32 = 0x53;
 const VK_W: i32 = 0x57;
@@ -180,12 +181,12 @@ pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result
         renderer.width(),
         renderer.height()
     );
-    println!("Controls: drag/arrows/A-D orbit | wheel/W-S zoom | R reset | Esc exit");
+    println!("Controls: drag/arrows/A-D orbit | wheel/W-S zoom | N day/night | R reset | Esc exit");
 
     let mut controls = CameraControls::new();
     let mut previous_time = Instant::now();
-    let mut needs_render = true;
-    let mut frame = renderer.render(&scene, &controls.camera(target), &materials);
+    let mut needs_render = false;
+    let mut frame = renderer.render(&scene, &controls.camera(target), &materials, controls.mode);
     let mut rendered_frames = 0_usize;
 
     loop {
@@ -199,7 +200,7 @@ pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result
         needs_render |= controls.update(window, delta_seconds);
 
         if needs_render {
-            frame = renderer.render(&scene, &controls.camera(target), &materials);
+            frame = renderer.render(&scene, &controls.camera(target), &materials, controls.mode);
             rendered_frames += 1;
             needs_render = false;
 
@@ -225,6 +226,8 @@ struct CameraControls {
     distance: f64,
     previous_mouse: Option<Point>,
     reset_was_down: bool,
+    night_was_down: bool,
+    mode: SceneMode,
 }
 
 impl CameraControls {
@@ -235,6 +238,8 @@ impl CameraControls {
             distance: 12.0,
             previous_mouse: None,
             reset_was_down: false,
+            night_was_down: false,
+            mode: SceneMode::Day,
         }
     }
 
@@ -307,6 +312,17 @@ impl CameraControls {
             changed = true;
         }
         self.reset_was_down = reset_is_down;
+
+        let night_is_down = key_down(VK_N);
+        if night_is_down && !self.night_was_down {
+            self.mode = match self.mode {
+                SceneMode::Day => SceneMode::Night,
+                SceneMode::Night => SceneMode::Day,
+            };
+            println!("Scene mode: {:?}", self.mode);
+            changed = true;
+        }
+        self.night_was_down = night_is_down;
 
         self.yaw = self.yaw.rem_euclid(std::f64::consts::TAU);
         self.pitch = self

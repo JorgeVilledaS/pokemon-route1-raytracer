@@ -24,6 +24,7 @@ Controles:
 
 - Arrastrar con el botón izquierdo, flechas o `A`/`D`: orbitar libremente.
 - Rueda del mouse o `W`/`S`: acercar y alejar.
+- `N`: alternar instantáneamente entre día y noche.
 - `R`: restablecer la cámara.
 - `Esc`: cerrar.
 
@@ -33,6 +34,12 @@ Para generar una captura PPM con el mismo renderer sin abrir la ventana:
 
 ```bash
 cargo run --release -- --preview
+```
+
+Para verificar el material emisivo con el cielo y la luz nocturnos:
+
+```bash
+cargo run --release -- --preview --night
 ```
 
 ## Video final

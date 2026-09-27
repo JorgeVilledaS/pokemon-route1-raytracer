@@ -11,7 +11,7 @@ El código fuente de los materiales está en `src/materials/material_library.rs`
 | Madera | `bark.ppm` | 0.25 | 32 | 0.05 | 0.00 | 1.00 | Vetas verticales, brillo suave y reflexión mínima; usa `bark_normal.ppm`. |
 | Agua | `water.ppm` | 0.85 | 128 | 0.20 | 0.85 | 1.33 | Ondas azules, highlight estrecho y parámetros físicos preparados para reflexión/refracción. |
 | Roca | `rock.ppm` | 0.55 | 64 | 0.10 | 0.00 | 1.00 | Fragmentos gris-azulados con specular visible y reflexión moderada. |
-| Letrero | `sign_wood.ppm` | 0.15 | 16 | 0.00 | 0.00 | 1.00 | Tablones cálidos con una emisión tenue preparada para escenas nocturnas. |
+| Letrero | `sign_wood.ppm` | 0.15 | 16 | 0.00 | 0.00 | 1.00 | Tablones cálidos con emisión naranja `(0.8, 0.18, 0.03)`, visible sin iluminación externa. |
 
 ## Formato
 
