@@ -2,27 +2,152 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Vec3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Vec3 {
-    pub const fn new(x: f32, y: f32, z: f32) -> Self { Self { x, y, z } }
-    pub fn dot(self, rhs: Self) -> f32 { self.x * rhs.x + self.y * rhs.y + self.z * rhs.z }
-    pub fn cross(self, rhs: Self) -> Self {
-        Self::new(self.y * rhs.z - self.z * rhs.y, self.z * rhs.x - self.x * rhs.z, self.x * rhs.y - self.y * rhs.x)
+    pub const fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
     }
-    pub fn length(self) -> f32 { self.dot(self).sqrt() }
-    pub fn normalized(self) -> Self { let len = self.length(); if len > 0.0 { self / len } else { self } }
-    pub fn reflect(self, normal: Self) -> Self { self - normal * (2.0 * self.dot(normal)) }
-    pub fn clamp(self, min: f32, max: f32) -> Self {
-        Self::new(self.x.clamp(min, max), self.y.clamp(min, max), self.z.clamp(min, max))
+
+    pub fn dot(&self, other: Vec3) -> f64 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+
+    pub fn cross(&self, other: Vec3) -> Vec3 {
+        Vec3::new(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
+    }
+
+    pub fn length(&self) -> f64 {
+        self.dot(*self).sqrt()
+    }
+
+    pub fn normalize(&self) -> Vec3 {
+        let length = self.length();
+        if length > 0.0 {
+            *self / length
+        } else {
+            *self
+        }
+    }
+
+    pub fn reflect(&self, n: Vec3) -> Vec3 {
+        *self - n * (2.0 * self.dot(n))
+    }
+
+    /// Refracta un vector incidente unitario usando una normal unitaria.
+    /// `eta` es la razón entre los índices de refracción (n1 / n2).
+    pub fn refract(&self, n: Vec3, eta: f64) -> Option<Vec3> {
+        let cos_theta = (-*self).dot(n).min(1.0);
+        let perpendicular = (*self + n * cos_theta) * eta;
+        let parallel_squared = 1.0 - perpendicular.dot(perpendicular);
+
+        if parallel_squared < 0.0 {
+            None
+        } else {
+            Some(perpendicular - n * parallel_squared.sqrt())
+        }
+    }
+
+    pub fn clamp(&self, min: f64, max: f64) -> Vec3 {
+        Vec3::new(
+            self.x.clamp(min, max),
+            self.y.clamp(min, max),
+            self.z.clamp(min, max),
+        )
     }
 }
 
-impl Add for Vec3 { type Output = Self; fn add(self, r: Self) -> Self { Self::new(self.x+r.x, self.y+r.y, self.z+r.z) } }
-impl Sub for Vec3 { type Output = Self; fn sub(self, r: Self) -> Self { Self::new(self.x-r.x, self.y-r.y, self.z-r.z) } }
-impl Mul<f32> for Vec3 { type Output = Self; fn mul(self, r: f32) -> Self { Self::new(self.x*r, self.y*r, self.z*r) } }
-impl Div<f32> for Vec3 { type Output = Self; fn div(self, r: f32) -> Self { self * (1.0/r) } }
-impl Neg for Vec3 { type Output = Self; fn neg(self) -> Self { Self::new(-self.x, -self.y, -self.z) } }
+impl Add for Vec3 {
+    type Output = Vec3;
+
+    fn add(self, other: Vec3) -> Vec3 {
+        Vec3::new(self.x + other.x, self.y + other.y, self.z + other.z)
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Vec3;
+
+    fn sub(self, other: Vec3) -> Vec3 {
+        Vec3::new(self.x - other.x, self.y - other.y, self.z - other.z)
+    }
+}
+
+impl Mul<f64> for Vec3 {
+    type Output = Vec3;
+
+    fn mul(self, scalar: f64) -> Vec3 {
+        Vec3::new(self.x * scalar, self.y * scalar, self.z * scalar)
+    }
+}
+
+impl Div<f64> for Vec3 {
+    type Output = Vec3;
+
+    fn div(self, scalar: f64) -> Vec3 {
+        self * (1.0 / scalar)
+    }
+}
+
+impl Neg for Vec3 {
+    type Output = Vec3;
+
+    fn neg(self) -> Vec3 {
+        Vec3::new(-self.x, -self.y, -self.z)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Vec3;
+
+    const EPSILON: f64 = 1.0e-12;
+
+    fn assert_vec3_close(actual: Vec3, expected: Vec3) {
+        assert!((actual.x - expected.x).abs() < EPSILON);
+        assert!((actual.y - expected.y).abs() < EPSILON);
+        assert!((actual.z - expected.z).abs() < EPSILON);
+    }
+
+    #[test]
+    fn dot_product_matches_known_result() {
+        let a = Vec3::new(1.0, 2.0, 3.0);
+        let b = Vec3::new(4.0, -5.0, 6.0);
+
+        assert!((a.dot(b) - 12.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn cross_product_matches_known_result() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+
+        assert_vec3_close(x.cross(y), Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn reflection_matches_known_result() {
+        let incident = Vec3::new(1.0, -1.0, 0.0).normalize();
+        let normal = Vec3::new(0.0, 1.0, 0.0);
+
+        assert_vec3_close(
+            incident.reflect(normal),
+            Vec3::new(1.0, 1.0, 0.0).normalize(),
+        );
+    }
+
+    #[test]
+    fn refraction_reports_total_internal_reflection() {
+        let incident = Vec3::new(3.0_f64.sqrt() / 2.0, -0.5, 0.0);
+        let normal = Vec3::new(0.0, 1.0, 0.0);
+
+        assert_eq!(incident.refract(normal, 1.5), None);
+    }
+}

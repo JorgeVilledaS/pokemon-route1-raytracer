@@ -1,4 +1,5 @@
 mod noise;
+#[allow(clippy::module_inception)]
 mod scene;
 mod terrain_generator;
 mod voxel;
