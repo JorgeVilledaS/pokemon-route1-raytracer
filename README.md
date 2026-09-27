@@ -4,11 +4,12 @@ Diorama inspirado en la Ruta 1 de Pokémon Verde Hoja, renderizado íntegramente
 
 ## Estado
 
-Prompt 00 completado: estructura base, módulos, assets placeholder y escritura PPM. Las características visuales se implementarán incrementalmente en los siguientes prompts.
+El proyecto incluye matemática vectorial, cámara orbital, escena voxel e intersección DDA. En Windows se ejecuta en una ventana interactiva con renderizado paralelo exclusivamente en CPU.
 
 ## Requisitos
 
 - Rust estable con Cargo.
+- Windows para la ventana interactiva nativa.
 - `ffmpeg` opcional, únicamente para convertir frames PPM a video.
 
 ## Uso
@@ -17,7 +18,16 @@ Prompt 00 completado: estructura base, módulos, assets placeholder y escritura 
 cargo run --release
 ```
 
-El ejecutable escribe `output/preview.ppm`.
+El ejecutable abre una ventana de 960×540. El raytracer trabaja internamente a 480×270 y escala el resultado con GDI para mantener una interacción fluida sin utilizar la GPU para el trazado.
+
+Controles:
+
+- Arrastrar con el botón izquierdo, flechas o `A`/`D`: orbitar libremente.
+- Rueda del mouse o `W`/`S`: acercar y alejar.
+- `R`: restablecer la cámara.
+- `Esc`: cerrar.
+
+Las filas del framebuffer se reparten entre los procesadores lógicos disponibles mediante `std::thread::scope`. Al iniciar, la consola muestra cuántos workers se usan y cuántas scanlines recibe cada uno.
 
 ## Video final
 
@@ -26,7 +36,8 @@ El ejecutable escribe `output/preview.ppm`.
 ## Restricciones de diseño
 
 - Sin crates externos.
-- Renderizado en CPU; no se usa GPU.
+- Renderizado en CPU; no se usa GPU para el raytracing.
+- Presentación de la imagen mediante Win32/GDI enlazado directamente con FFI.
 - Imágenes intermedias en formato PPM P6.
 - Paralelismo con `std::thread`.
 

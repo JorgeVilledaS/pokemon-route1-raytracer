@@ -4,55 +4,50 @@
 mod core;
 mod materials;
 mod parallel;
+mod platform;
 mod render;
 mod scene;
 mod utils;
 
-use crate::core::{write_ppm, Camera, Ray, Vec3};
+use crate::core::Vec3;
+use crate::materials::MaterialId;
+use crate::scene::{RotationY, Scene, Voxel};
 use std::io;
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 300;
-const FRAME_COUNT: usize = 10;
-const SKY_COLOR: Vec3 = Vec3::new(0.18, 0.38, 0.72);
-
 fn main() -> io::Result<()> {
-    let target = Vec3::default();
-
-    println!("frame,t,yaw,distance,position");
-    for frame in 0..FRAME_COUNT {
-        let t = frame as f64 / (FRAME_COUNT - 1) as f64;
-        let camera = Camera::at_time(t, target);
-        let pixels = render_empty_scene(&camera);
-        let output_path = format!("output/frames/camera_{frame:02}.ppm");
-
-        write_ppm(&output_path, WIDTH, HEIGHT, &pixels)?;
-
-        let position = camera.position();
-        println!(
-            "{frame},{t:.3},{:.6},{:.6},({:.3} {:.3} {:.3})",
-            camera.yaw, camera.distance, position.x, position.y, position.z
-        );
-    }
-
-    Ok(())
+    let scene = build_test_scene();
+    let target = Vec3::new(12.0, 1.5, 12.0);
+    platform::run(scene, target)
 }
 
-fn render_empty_scene(camera: &Camera) -> Vec<Vec3> {
-    let mut pixels = Vec::with_capacity(WIDTH * HEIGHT);
+fn build_test_scene() -> Scene {
+    let mut scene = Scene::new(24, 8, 24);
+    let grass = Voxel::new(MaterialId::Grass, RotationY::Deg0);
 
-    for y in 0..HEIGHT {
-        let v = 1.0 - 2.0 * (y as f64 + 0.5) / HEIGHT as f64;
-        for x in 0..WIDTH {
-            let u = 2.0 * (x as f64 + 0.5) / WIDTH as f64 - 1.0;
-            let ray = camera.get_ray(u, v);
-            pixels.push(sample_solid_skybox(ray));
+    for z in 8..16 {
+        for x in 8..16 {
+            scene.set(x, 0, z, Some(grass));
         }
     }
 
-    pixels
-}
+    scene.set(
+        12,
+        1,
+        12,
+        Some(Voxel::new(MaterialId::Wood, RotationY::Deg0)),
+    );
+    scene.set(
+        12,
+        2,
+        12,
+        Some(Voxel::new(MaterialId::Wood, RotationY::Deg90)),
+    );
+    scene.set(
+        12,
+        3,
+        12,
+        Some(Voxel::new(MaterialId::Leaves, RotationY::Deg0)),
+    );
 
-fn sample_solid_skybox(_ray: Ray) -> Vec3 {
-    SKY_COLOR
+    scene
 }

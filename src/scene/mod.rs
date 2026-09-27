@@ -6,4 +6,4 @@ mod voxel;
 
 pub use scene::Scene;
 pub use terrain_generator::TerrainGenerator;
-pub use voxel::Voxel;
+pub use voxel::{RotationY, Voxel};
