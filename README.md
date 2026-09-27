@@ -29,6 +29,12 @@ Controles:
 
 Las filas del framebuffer se reparten entre los procesadores lógicos disponibles mediante `std::thread::scope`. Al iniciar, la consola muestra cuántos workers se usan y cuántas scanlines recibe cada uno.
 
+Para generar una captura PPM con el mismo renderer sin abrir la ventana:
+
+```bash
+cargo run --release -- --preview
+```
+
 ## Video final
 
 > Se agregará aquí el enlace o reproductor del video final cuando termine el diorama.

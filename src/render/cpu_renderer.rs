@@ -1,6 +1,6 @@
 use super::{intersect_with_steps, Skybox};
 use crate::core::{Camera, Vec3};
-use crate::materials::MaterialId;
+use crate::materials::MaterialLibrary;
 use crate::scene::Scene;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -55,7 +55,12 @@ impl CpuRenderer {
         self.rows_per_worker
     }
 
-    pub fn render(&self, scene: &Scene, camera: &Camera) -> RenderedFrame {
+    pub fn render(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        materials: &MaterialLibrary,
+    ) -> RenderedFrame {
         let started = Instant::now();
         let mut pixels = vec![0; self.width * self.height];
         let chunk_size = self.rows_per_worker * self.width;
@@ -67,7 +72,15 @@ impl CpuRenderer {
                 .map(|(worker, chunk)| {
                     let first_row = worker * self.rows_per_worker;
                     scope.spawn(move || {
-                        render_rows(chunk, first_row, self.width, self.height, scene, camera)
+                        render_rows(
+                            chunk,
+                            first_row,
+                            self.width,
+                            self.height,
+                            scene,
+                            camera,
+                            materials,
+                        )
                     })
                 })
                 .collect();
@@ -93,6 +106,7 @@ fn render_rows(
     height: usize,
     scene: &Scene,
     camera: &Camera,
+    materials: &MaterialLibrary,
 ) -> usize {
     let mut total_dda_steps = 0;
 
@@ -107,9 +121,8 @@ fn render_rows(
             total_dda_steps += dda_steps;
 
             let color = if let Some(hit) = hit {
-                let light = Vec3::new(-0.4, 0.9, 0.25).normalize();
-                let illumination = 0.35 + 0.65 * hit.normal.dot(light).max(0.0);
-                flat_material_color(hit.material) * illumination
+                let material = materials.get(hit.material);
+                super::shading::shade(material, hit.uv, hit.normal, -ray.dir)
             } else {
                 Skybox.sample(ray.dir)
             };
@@ -118,17 +131,6 @@ fn render_rows(
     }
 
     total_dda_steps
-}
-
-fn flat_material_color(material: MaterialId) -> Vec3 {
-    match material {
-        MaterialId::Grass => Vec3::new(0.18, 0.62, 0.25),
-        MaterialId::DirtPath => Vec3::new(0.78, 0.68, 0.35),
-        MaterialId::Wood => Vec3::new(0.36, 0.16, 0.08),
-        MaterialId::Leaves => Vec3::new(0.12, 0.48, 0.18),
-        MaterialId::Water => Vec3::new(0.08, 0.35, 0.65),
-        MaterialId::EmissiveSign => Vec3::new(0.65, 0.32, 0.12),
-    }
 }
 
 fn color_to_bgrx(color: Vec3) -> u32 {
@@ -148,15 +150,17 @@ fn gamma_to_byte(value: f64) -> u8 {
 mod tests {
     use super::CpuRenderer;
     use crate::core::{Camera, Vec3};
+    use crate::materials::MaterialLibrary;
     use crate::scene::Scene;
 
     #[test]
     fn parallel_renderer_covers_every_pixel() {
         let renderer = CpuRenderer::new(17, 11);
         let scene = Scene::new(4, 4, 4);
+        let materials = MaterialLibrary::load_all().expect("project textures should load");
         let camera = Camera::new(Vec3::new(2.0, 1.0, 2.0), 0.0, 0.2, 6.0, 60.0, 17.0 / 11.0);
 
-        let frame = renderer.render(&scene, &camera);
+        let frame = renderer.render(&scene, &camera, &materials);
 
         assert_eq!(frame.pixels.len(), 17 * 11);
         assert!(renderer.worker_count() <= 11);

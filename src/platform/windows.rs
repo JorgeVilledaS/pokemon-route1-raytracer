@@ -1,4 +1,5 @@
 use crate::core::{Camera, Vec3};
+use crate::materials::MaterialLibrary;
 use crate::render::CpuRenderer;
 use crate::scene::Scene;
 use std::ffi::c_void;
@@ -169,7 +170,7 @@ extern "system" {
     ) -> i32;
 }
 
-pub fn run(scene: Scene, target: Vec3) -> io::Result<()> {
+pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result<()> {
     let window = create_window()?;
     let renderer = CpuRenderer::new(RENDER_WIDTH, RENDER_HEIGHT);
     println!(
@@ -184,7 +185,7 @@ pub fn run(scene: Scene, target: Vec3) -> io::Result<()> {
     let mut controls = CameraControls::new();
     let mut previous_time = Instant::now();
     let mut needs_render = true;
-    let mut frame = renderer.render(&scene, &controls.camera(target));
+    let mut frame = renderer.render(&scene, &controls.camera(target), &materials);
     let mut rendered_frames = 0_usize;
 
     loop {
@@ -198,7 +199,7 @@ pub fn run(scene: Scene, target: Vec3) -> io::Result<()> {
         needs_render |= controls.update(window, delta_seconds);
 
         if needs_render {
-            frame = renderer.render(&scene, &controls.camera(target));
+            frame = renderer.render(&scene, &controls.camera(target), &materials);
             rendered_frames += 1;
             needs_render = false;
 
