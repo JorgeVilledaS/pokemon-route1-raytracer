@@ -1,6 +1,6 @@
 use super::fresnel::schlick;
 use super::shading::{shade, Light, RAY_BIAS};
-use super::{intersect_with_steps, SceneMode, Skybox};
+use super::{intersect_with_steps, sample_skybox, SceneMode};
 use crate::core::{Ray, Vec3};
 use crate::materials::MaterialLibrary;
 use crate::scene::Scene;
@@ -36,7 +36,7 @@ impl<'a> Raytracer<'a> {
     pub fn trace_with_steps(&self, ray: &Ray, depth: u32) -> (Vec3, usize) {
         let (hit, mut steps) = intersect_with_steps(self.scene, ray);
         let Some(hit) = hit else {
-            return (Skybox::new(self.mode).sample(ray.dir), steps);
+            return (sample_skybox(ray.dir, self.mode), steps);
         };
 
         let material = self.materials.get(hit.material);
@@ -242,7 +242,7 @@ mod tests {
         );
 
         let color = raytracer.trace(&ray, 2);
-        let sky = super::Skybox::new(SceneMode::Day).sample(Vec3::new(0.0, 1.0, 0.0));
+        let sky = super::sample_skybox(Vec3::new(0.0, 1.0, 0.0), SceneMode::Day);
 
         assert!(color.x.is_finite() && color.y.is_finite() && color.z.is_finite());
         assert!((color - sky).length() > 0.1);

@@ -235,7 +235,7 @@ impl CameraControls {
         Self {
             yaw: 45.0_f64.to_radians(),
             pitch: 28.0_f64.to_radians(),
-            distance: 12.0,
+            distance: 23.0,
             previous_mouse: None,
             reset_was_down: false,
             night_was_down: false,

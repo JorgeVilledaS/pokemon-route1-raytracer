@@ -8,5 +8,5 @@ mod voxel_intersect;
 pub use cpu_renderer::{CpuRenderer, RenderedFrame};
 pub use raytracer::Raytracer;
 pub use shading::Light;
-pub use skybox::{SceneMode, Skybox};
+pub use skybox::{sample_skybox, SceneMode};
 pub use voxel_intersect::{intersect, intersect_with_steps, Face, Hit};

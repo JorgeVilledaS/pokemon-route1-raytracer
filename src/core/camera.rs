@@ -2,8 +2,8 @@ use super::{Ray, Vec3};
 use std::f64::consts::TAU;
 
 const DEFAULT_PITCH: f64 = 25.0_f64.to_radians();
-const DEFAULT_DISTANCE: f64 = 8.0;
-const DOLLY_AMPLITUDE: f64 = 2.0;
+const DEFAULT_DISTANCE: f64 = 23.0;
+const DOLLY_AMPLITUDE: f64 = 4.0;
 const DEFAULT_FOV_DEG: f64 = 60.0;
 const DEFAULT_ASPECT_RATIO: f64 = 4.0 / 3.0;
 

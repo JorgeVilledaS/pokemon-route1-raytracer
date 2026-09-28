@@ -12,11 +12,16 @@ mod utils;
 use crate::core::{write_ppm, Camera, Vec3};
 use crate::materials::{MaterialId, MaterialLibrary};
 use crate::render::{CpuRenderer, SceneMode};
-use crate::scene::{RotationY, Scene, Voxel};
+use crate::scene::{generate, voxel_index, RotationY, Scene, Voxel, GENERATED_HEIGHT};
 use std::io;
+use std::time::{Duration, Instant};
 
 fn main() -> io::Result<()> {
-    let scene = build_test_scene();
+    let (scene, terrain_elapsed) = build_test_scene();
+    println!(
+        "Terrain 16x16 generated in {:.3} ms",
+        terrain_elapsed.as_secs_f64() * 1_000.0
+    );
     let materials = MaterialLibrary::load_all()?;
     let target = Vec3::new(12.0, 2.5, 12.0);
 
@@ -47,7 +52,7 @@ fn render_preview(
         target,
         45.0_f64.to_radians(),
         28.0_f64.to_radians(),
-        12.0,
+        23.0,
         60.0,
         WIDTH as f64 / HEIGHT as f64,
     );
@@ -74,25 +79,38 @@ fn bgrx_to_linear(pixel: u32) -> Vec3 {
     Vec3::new(red.powf(2.2), green.powf(2.2), blue.powf(2.2))
 }
 
-fn build_test_scene() -> Scene {
+fn build_test_scene() -> (Scene, Duration) {
     let mut scene = Scene::new(24, 8, 24);
+    const TERRAIN_SIZE: usize = 16;
+    const TERRAIN_ORIGIN: i32 = 4;
 
-    // Prado 8x8 con un camino claro que cruza la escena.
-    for z in 8..16 {
-        for x in 8..16 {
-            let material = if z == 11 || z == 12 {
-                MaterialId::Dirt
-            } else {
-                MaterialId::Grass
-            };
-            scene.set(x, 0, z, Some(Voxel::new(MaterialId::Dirt, RotationY::Deg0)));
-            scene.set(x, 1, z, Some(Voxel::new(material, RotationY::Deg0)));
+    let generation_started = Instant::now();
+    let terrain = generate(0x524f_5554_4531, TERRAIN_SIZE, TERRAIN_SIZE);
+    let terrain_elapsed = generation_started.elapsed();
+
+    // Región procedural 16x16 centrada dentro de la escena 24x24.
+    for z in 0..TERRAIN_SIZE {
+        for y in 0..GENERATED_HEIGHT {
+            for x in 0..TERRAIN_SIZE {
+                let voxel = terrain[voxel_index(TERRAIN_SIZE, x, y, z)];
+                if voxel.material != MaterialId::Air {
+                    scene.set(
+                        TERRAIN_ORIGIN + x as i32,
+                        y as i32,
+                        TERRAIN_ORIGIN + z as i32,
+                        Some(voxel),
+                    );
+                }
+            }
         }
     }
 
     // Estanque 3x3 con fondo alternado para hacer visible la refracción.
     for z in 13..16 {
         for x in 9..12 {
+            for y in 2..GENERATED_HEIGHT as i32 {
+                scene.set(x, y, z, None);
+            }
             let bottom = if (x + z) % 2 == 0 {
                 MaterialId::Dirt
             } else {
@@ -148,5 +166,5 @@ fn build_test_scene() -> Scene {
         Some(Voxel::new(MaterialId::Sign, RotationY::Deg0)),
     );
 
-    scene
+    (scene, terrain_elapsed)
 }
