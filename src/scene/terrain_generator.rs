@@ -52,7 +52,7 @@ pub fn generate(seed: u64, size_x: usize, size_z: usize) -> Vec<Voxel> {
                     x,
                     2,
                     z,
-                    Voxel::new(MaterialId::Grass, rotation),
+                    Voxel::new(MaterialId::TallGrass, rotation),
                 );
             }
 
@@ -144,7 +144,7 @@ fn place_tree(
                 nx,
                 4,
                 nz,
-                Voxel::new(MaterialId::Grass, rotation),
+                Voxel::new(MaterialId::Leaves, rotation),
             );
         }
     }
@@ -177,7 +177,7 @@ mod tests {
                     MaterialId::Grass => grass += 1,
                     material => panic!("unexpected surface material: {material:?}"),
                 }
-                if terrain[voxel_index(16, x, 2, z)].material == MaterialId::Grass {
+                if terrain[voxel_index(16, x, 2, z)].material == MaterialId::TallGrass {
                     tall_grass += 1;
                 }
             }

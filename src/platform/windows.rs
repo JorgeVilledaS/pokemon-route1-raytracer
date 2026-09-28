@@ -1,6 +1,7 @@
 use crate::core::{Camera, Vec3};
 use crate::materials::MaterialLibrary;
 use crate::render::{CpuRenderer, SceneMode};
+use crate::scene::adventure::{overview_target, start_position, Adventure};
 use crate::scene::Scene;
 use std::ffi::c_void;
 use std::io;
@@ -139,6 +140,7 @@ extern "system" {
     fn PostQuitMessage(exit_code: i32);
     fn LoadCursorW(instance: Handle, cursor_name: *const u16) -> Handle;
     fn GetAsyncKeyState(key: i32) -> i16;
+    fn GetForegroundWindow() -> Handle;
     fn GetCursorPos(point: *mut Point) -> i32;
     fn ScreenToClient(hwnd: Handle, point: *mut Point) -> i32;
     fn GetClientRect(hwnd: Handle, rect: *mut Rect) -> i32;
@@ -169,9 +171,13 @@ extern "system" {
         usage: u32,
         raster_operation: u32,
     ) -> i32;
+    fn TextOutW(dc: Handle, x: i32, y: i32, text: *const u16, count: i32) -> i32;
+    fn SetTextColor(dc: Handle, color: u32) -> u32;
+    fn SetBkColor(dc: Handle, color: u32) -> u32;
+    fn SetBkMode(dc: Handle, mode: i32) -> i32;
 }
 
-pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result<()> {
+pub fn run(mut scene: Scene, _target: Vec3, materials: MaterialLibrary) -> io::Result<()> {
     let window = create_window()?;
     let renderer = CpuRenderer::new(RENDER_WIDTH, RENDER_HEIGHT);
     println!(
@@ -181,36 +187,94 @@ pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result
         renderer.width(),
         renderer.height()
     );
-    println!("Controls: drag/arrows/A-D orbit | wheel/W-S zoom | N day/night | R reset | Esc exit");
+    println!("Controls: WASD walk | SPACE auto | TAB overview | mouse/arrows orbit | wheel/Q/E zoom | N atmosphere | P restart");
 
     let mut controls = CameraControls::new();
+    let mut game = Adventure::new(42);
+    let mut auto_down = false;
+    let mut overview = true;
+    let mut overview_down = false;
+    let mut restart_down = false;
+    game.sync(&mut scene);
+    let target = start_position();
     let mut previous_time = Instant::now();
-    let mut needs_render = false;
     let mut frame = renderer.render(&scene, &controls.camera(target), &materials, controls.mode);
     let mut rendered_frames = 0_usize;
 
     loop {
-        if !pump_messages() || key_down(VK_ESCAPE) {
+        if !pump_messages() {
+            break;
+        }
+        if unsafe { GetForegroundWindow() } != window {
+            previous_time = Instant::now();
+            std::thread::sleep(Duration::from_millis(25));
+            continue;
+        }
+        if key_down(VK_ESCAPE) {
             break;
         }
 
         let now = Instant::now();
         let delta_seconds = (now - previous_time).as_secs_f64().min(0.05);
         previous_time = now;
-        needs_render |= controls.update(window, delta_seconds);
+        controls.update(window, delta_seconds);
+        for index in 1..=3 {
+            if key_down(0x30 + index)
+                && game
+                    .encounters
+                    .iter()
+                    .any(|e| e.captured && e.skin == index as usize)
+            {
+                game.skin = index as usize;
+            }
+        }
+        let auto = key_down(0x20);
+        if auto && !auto_down {
+            game.auto = !game.auto;
+        }
+        auto_down = auto;
+        let tab = key_down(0x09);
+        if tab && !overview_down {
+            overview = !overview;
+        }
+        overview_down = tab;
+        let restart = key_down(0x50);
+        if restart && !restart_down {
+            game = Adventure::new(42);
+            game.sync(&mut scene);
+        }
+        restart_down = restart;
+        {
+            let forward = Vec3::new(-controls.yaw.sin(), 0.0, -controls.yaw.cos());
+            let right = Vec3::new(controls.yaw.cos(), 0.0, -controls.yaw.sin());
+            let input = forward
+                * (f64::from(key_down(VK_W) as u8) - f64::from(key_down(VK_S) as u8))
+                + right * (f64::from(key_down(VK_D) as u8) - f64::from(key_down(VK_A) as u8));
+            game.update(&scene, delta_seconds, input);
+            game.sync(&mut scene);
+        }
+        let target = if overview {
+            overview_target()
+        } else {
+            game.position + Vec3::new(0.0, 0.5, -3.5)
+        };
+        let mut camera = controls.camera(target);
+        if overview {
+            camera.distance = 88.0;
+            camera.pitch = 58.0_f64.to_radians();
+        }
 
-        if needs_render {
+        {
             let stats = renderer.render_into(
                 &mut frame.pixels,
                 &scene,
-                &controls.camera(target),
+                &camera,
                 &materials,
                 controls.mode,
             );
             frame.elapsed = stats.elapsed;
             frame.total_dda_steps = stats.total_dda_steps;
             rendered_frames += 1;
-            needs_render = false;
 
             if rendered_frames.is_multiple_of(30) {
                 println!(
@@ -222,6 +286,7 @@ pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result
         }
 
         present(window, &frame.pixels)?;
+        draw_hud(window, &game, controls.mode);
         std::thread::sleep(Duration::from_millis(8));
     }
 
@@ -241,9 +306,9 @@ struct CameraControls {
 impl CameraControls {
     fn new() -> Self {
         Self {
-            yaw: 45.0_f64.to_radians(),
-            pitch: 28.0_f64.to_radians(),
-            distance: 23.0,
+            yaw: 0.0,
+            pitch: 30.0_f64.to_radians(),
+            distance: 14.0,
             previous_mouse: None,
             reset_was_down: false,
             night_was_down: false,
@@ -267,11 +332,11 @@ impl CameraControls {
         let orbit_delta = 1.8 * delta_seconds;
         let zoom_delta = 7.0 * delta_seconds;
 
-        if key_down(VK_LEFT) || key_down(VK_A) {
+        if key_down(VK_LEFT) {
             self.yaw -= orbit_delta;
             changed = true;
         }
-        if key_down(VK_RIGHT) || key_down(VK_D) {
+        if key_down(VK_RIGHT) {
             self.yaw += orbit_delta;
             changed = true;
         }
@@ -283,11 +348,11 @@ impl CameraControls {
             self.pitch -= orbit_delta;
             changed = true;
         }
-        if key_down(VK_W) {
+        if key_down(0x51) {
             self.distance -= zoom_delta;
             changed = true;
         }
-        if key_down(VK_S) {
+        if key_down(0x45) {
             self.distance += zoom_delta;
             changed = true;
         }
@@ -474,6 +539,47 @@ fn cursor_in_client(window: Handle) -> Option<Point> {
     unsafe {
         let mut point = Point::default();
         (GetCursorPos(&mut point) != 0 && ScreenToClient(window, &mut point) != 0).then_some(point)
+    }
+}
+
+fn draw_hud(window: Handle, game: &Adventure, mode: SceneMode) {
+    unsafe {
+        let dc = GetDC(window);
+        if dc.is_null() {
+            return;
+        }
+        SetBkMode(dc, 2);
+        SetBkColor(dc, 0x002c2018);
+        SetTextColor(dc, 0x00e8ffff);
+        let lines = [
+            format!(
+                "RUTA 01 / CAPTURAS {}/{} / {:?}",
+                game.count(),
+                game.encounters.len(),
+                mode
+            ),
+            "WASD caminar | ESPACIO auto | TAB mapa | raton/flechas orbita | rueda/Q/E zoom"
+                .to_string(),
+            "N dia/noche | 1/2/3 apariencias capturadas | P reiniciar".to_string(),
+            if game.finished {
+                "LLEGASTE AL FINAL! P para volver a explorar".to_string()
+            } else {
+                format!(
+                    "{} | Recorrido {:.0}%",
+                    if game.auto {
+                        "PASEO AUTOMATICO"
+                    } else {
+                        "EXPLORACION"
+                    },
+                    game.progress() * 100.0
+                )
+            },
+        ];
+        for (i, line) in lines.iter().enumerate() {
+            let w: Vec<u16> = line.encode_utf16().collect();
+            TextOutW(dc, 18, 14 + i as i32 * 24, w.as_ptr(), w.len() as i32);
+        }
+        ReleaseDC(window, dc);
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod adventure;
 mod noise;
 #[allow(clippy::module_inception)]
 mod scene;

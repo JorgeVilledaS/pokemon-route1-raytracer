@@ -20,10 +20,11 @@ impl<'a> Raytracer<'a> {
         mode: SceneMode,
         max_depth: u32,
     ) -> Self {
+        let light = Light::for_mode(mode);
         Self {
             scene,
             materials,
-            light: Light::for_mode(mode),
+            light,
             mode,
             max_depth,
         }
@@ -35,6 +36,26 @@ impl<'a> Raytracer<'a> {
 
     pub fn trace_with_steps(&self, ray: &Ray, depth: u32) -> (Vec3, usize) {
         let (hit, mut steps) = intersect_with_steps(self.scene, ray);
+        let mut closest = hit.map_or(f64::INFINITY, |h| (h.point - ray.origin).length());
+        let mut actor_color = None;
+        for actor in self.scene.actor.iter().chain(self.scene.encounters.iter()) {
+            if let Some((t, n, face, u, v)) = super::avatar::hit(ray, *actor) {
+                if t * ray.dir.length() < closest {
+                    closest = t * ray.dir.length();
+                    let c = self.materials.avatars.skins[actor.skin][face].sample(u, v);
+                    let light = (0.42 + 0.58 * n.dot(self.light.direction).max(0.0))
+                        * if self.mode == SceneMode::Night {
+                            0.3
+                        } else {
+                            1.0
+                        };
+                    actor_color = Some(c * light);
+                }
+            }
+        }
+        if let Some(color) = actor_color {
+            return (color, steps);
+        }
         let Some(hit) = hit else {
             return (sample_skybox(ray.dir, self.mode), steps);
         };

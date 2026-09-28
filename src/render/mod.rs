@@ -1,3 +1,4 @@
+pub mod avatar;
 mod cpu_renderer;
 mod fresnel;
 mod raytracer;

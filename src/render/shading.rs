@@ -42,14 +42,56 @@ pub fn shade(
     scene: &Scene,
     view_direction: Vec3,
 ) -> Vec3 {
-    let albedo = material.albedo.sample(hit.uv.0, hit.uv.1);
+    let mut albedo = material.albedo.sample(hit.uv.0, hit.uv.1);
+    // Motivos de superficie en espacio UV: contornos y grupos de hojas grandes.
+    // Conservan el albedo PPM como base y evitan ruido fino tipo grava.
+    use crate::materials::MaterialId;
+    let (u, v) = hit.uv;
+    if hit.material == MaterialId::Flowers {
+        let x = u - 0.5;
+        let y = v - 0.5;
+        let r = x * x + y * y;
+        albedo = if r < 0.014 {
+            Vec3::new(1.0, 0.72, 0.08)
+        } else if r < 0.11 {
+            Vec3::new(0.95, 0.12, 0.27)
+        } else {
+            Vec3::new(0.11, 0.49, 0.22)
+        };
+    } else if hit.material == MaterialId::Leaves {
+        let x = u;
+        let y = v;
+        let leaf = (x - 0.5).abs() * 1.1 + (y - 0.5).abs();
+        albedo = if leaf > 0.55 {
+            Vec3::new(0.035, 0.22, 0.12)
+        } else if x + y < 0.85 {
+            Vec3::new(0.35, 0.72, 0.19)
+        } else {
+            Vec3::new(0.13, 0.49, 0.15)
+        };
+    } else if hit.material == MaterialId::TallGrass {
+        let blade = ((u * 2.0 + v).fract() - 0.5).abs();
+        albedo = if blade < 0.12 {
+            Vec3::new(0.035, 0.28, 0.12)
+        } else {
+            Vec3::new(0.23, 0.62, 0.23)
+        };
+    } else if hit.material == MaterialId::Grass {
+        albedo = Vec3::new(0.24, 0.62, 0.32) * 0.85 + albedo * 0.15;
+    }
+    let emissive = material
+        .emissive_map
+        .as_ref()
+        .map_or(material.emissive, |map| {
+            component_mul(map.sample(hit.uv.0, hit.uv.1), material.emissive)
+        });
     let normal = mapped_normal(hit, material);
     let ambient = albedo * (0.03 + 0.17 * light.intensity.min(1.0));
     let light_direction = light.direction.normalize();
     let normal_dot_light = normal.dot(light_direction).max(0.0);
 
     if normal_dot_light == 0.0 || is_shadowed(hit, light, scene) {
-        return ambient + material.emissive;
+        return ambient + emissive;
     }
 
     let diffuse = component_mul(albedo, light.color) * (0.8 * light.intensity * normal_dot_light);
@@ -62,7 +104,7 @@ pub fn shade(
     };
     let specular = light.color * specular_strength;
 
-    ambient + diffuse + specular + material.emissive
+    ambient + diffuse + specular + emissive
 }
 
 pub fn mapped_normal(hit: &Hit, material: &Material) -> Vec3 {
@@ -97,7 +139,12 @@ fn tangent_basis(face: Face) -> (Vec3, Vec3) {
 pub fn is_shadowed(hit: &Hit, light: &Light, scene: &Scene) -> bool {
     let shadow_origin = hit.point + hit.normal * RAY_BIAS;
     let shadow_ray = Ray::new(shadow_origin, light.direction.normalize());
-    occluded(scene, &shadow_ray)
+    scene
+        .actor
+        .iter()
+        .chain(scene.encounters.iter())
+        .any(|a| super::avatar::hit(&shadow_ray, *a).is_some())
+        || occluded(scene, &shadow_ray)
 }
 
 fn component_mul(left: Vec3, right: Vec3) -> Vec3 {

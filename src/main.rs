@@ -17,13 +17,16 @@ use std::io;
 use std::time::{Duration, Instant};
 
 fn main() -> io::Result<()> {
-    let (scene, terrain_elapsed) = build_test_scene();
+    let started = Instant::now();
+    let mut scene = scene::adventure::build_route();
+    scene::adventure::Adventure::new(42).sync(&mut scene);
+    let terrain_elapsed = started.elapsed();
     println!(
-        "Terrain 16x16 generated in {:.3} ms",
+        "Route 48x80 (including procedural 16x16 region) generated in {:.3} ms",
         terrain_elapsed.as_secs_f64() * 1_000.0
     );
     let materials = MaterialLibrary::load_all()?;
-    let target = Vec3::new(12.0, 2.5, 12.0);
+    let target = scene::adventure::overview_target();
 
     let arguments: Vec<_> = std::env::args().collect();
     let mode = if arguments.iter().any(|argument| argument == "--night") {
@@ -35,11 +38,58 @@ fn main() -> io::Result<()> {
         benchmark_render(&scene, target, &materials, mode);
         return Ok(());
     }
+    if arguments
+        .iter()
+        .any(|argument| argument == "--texture-preview")
+    {
+        return render_texture_validation(&materials, mode);
+    }
     if arguments.iter().any(|argument| argument == "--preview") {
         return render_preview(&scene, target, &materials, mode);
     }
 
     platform::run(scene, target, materials)
+}
+
+fn render_texture_validation(materials: &MaterialLibrary, mode: SceneMode) -> io::Result<()> {
+    const WIDTH: usize = 640;
+    const HEIGHT: usize = 360;
+    let mut scene = Scene::new(7, 2, 7);
+    let material_grid = [
+        MaterialId::Grass,
+        MaterialId::TallGrass,
+        MaterialId::Dirt,
+        MaterialId::Fence,
+        MaterialId::Wood,
+        MaterialId::Leaves,
+        MaterialId::Sign,
+        MaterialId::Water,
+        MaterialId::Rock,
+    ];
+    for (index, material) in material_grid.into_iter().enumerate() {
+        let x = 1 + (index % 3) as i32 * 2;
+        let z = 1 + (index / 3) as i32 * 2;
+        scene.set(x, 0, z, Some(Voxel::new(material, RotationY::Deg0)));
+    }
+
+    let camera = Camera::new(
+        Vec3::new(3.5, 0.5, 3.5),
+        35.0_f64.to_radians(),
+        30.0_f64.to_radians(),
+        11.0,
+        55.0,
+        WIDTH as f64 / HEIGHT as f64,
+    );
+    let renderer = CpuRenderer::new(WIDTH, HEIGHT);
+    let frame = renderer.render(&scene, &camera, materials, mode);
+    let pixels: Vec<_> = frame.pixels.iter().copied().map(bgrx_to_linear).collect();
+    let path = "output/frames/texture_validation.ppm";
+    write_ppm(path, WIDTH, HEIGHT, &pixels)?;
+    println!(
+        "Texture validation written to {path} in {:.1} ms (rows: grass/tall/dirt, fence/bark/leaves, sign/water/rock)",
+        frame.elapsed.as_secs_f64() * 1_000.0
+    );
+    Ok(())
 }
 
 fn benchmark_render(scene: &Scene, target: Vec3, materials: &MaterialLibrary, mode: SceneMode) {
@@ -95,14 +145,23 @@ fn render_preview(
     mode: SceneMode,
 ) -> io::Result<()> {
     const WIDTH: usize = 640;
-    const HEIGHT: usize = 360;
+    const HEIGHT: usize = 800;
 
     let renderer = CpuRenderer::new(WIDTH, HEIGHT);
+    let overview = std::env::args().any(|a| a == "--overview");
     let camera = Camera::new(
-        target,
-        45.0_f64.to_radians(),
-        28.0_f64.to_radians(),
-        23.0,
+        if overview {
+            target
+        } else {
+            scene::adventure::start_position() + Vec3::new(0.0, 0.5, -3.5)
+        },
+        0.0,
+        if overview {
+            58.0_f64.to_radians()
+        } else {
+            26.0_f64.to_radians()
+        },
+        if overview { 88.0 } else { 20.0 },
         60.0,
         WIDTH as f64 / HEIGHT as f64,
     );
@@ -193,7 +252,7 @@ fn build_test_scene() -> (Scene, Duration) {
         12,
         4,
         13,
-        Some(Voxel::new(MaterialId::Grass, RotationY::Deg0)),
+        Some(Voxel::new(MaterialId::Leaves, RotationY::Deg0)),
     );
 
     // Rocas y letrero hacen visibles los materiales restantes desde el inicio.
@@ -203,6 +262,16 @@ fn build_test_scene() -> (Scene, Duration) {
         14,
         Some(Voxel::new(MaterialId::Rock, RotationY::Deg90)),
     );
+
+    // Cerca blanca de prueba: usa albedo y normal map propios.
+    for x in 5..8 {
+        scene.set(
+            x,
+            2,
+            5,
+            Some(Voxel::new(MaterialId::Fence, RotationY::Deg0)),
+        );
+    }
     scene.set(
         15,
         2,

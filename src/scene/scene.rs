@@ -1,6 +1,8 @@
 use super::Voxel;
 
 pub struct Scene {
+    pub actor: Option<super::adventure::Actor>,
+    pub encounters: Vec<super::adventure::Actor>,
     pub width: usize,
     pub height: usize,
     pub depth: usize,
@@ -15,6 +17,8 @@ impl Scene {
             .expect("scene dimensions overflow usize");
 
         Self {
+            actor: None,
+            encounters: Vec::new(),
             width,
             height,
             depth,

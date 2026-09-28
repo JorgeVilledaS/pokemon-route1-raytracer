@@ -9,5 +9,6 @@ pub struct Material {
     pub kt: f64,
     pub ior: f64,
     pub emissive: Vec3,
+    pub emissive_map: Option<Texture>,
     pub normal_map: Option<Texture>,
 }

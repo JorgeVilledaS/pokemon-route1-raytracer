@@ -1,5 +1,25 @@
 # Bitácora de paralelismo y optimización
 
+## Aventura ampliada (32×80)
+
+Medición posterior con ruta larga, avatares analíticos, encuentros y sombras de
+personajes, a 640×360, mismo protocolo de calentamiento y cinco frames:
+
+| Workers | Tiempo promedio | Speedup |
+| ---: | ---: | ---: |
+| 1 | 222.77 ms | 1.00× |
+| 12 | 33.86 ms | 6.58× |
+
+Framebuffers idénticos byte por byte. Construcción de la ruta: 0.235 ms.
+Son mediciones de esa cámara y equipo, no una garantía para cualquier ángulo.
+La ventana continúa a 480×270. Se conserva el DDA para el terreno; solo los diez
+actores como máximo usan cajas analíticas independientes. La simulación modifica
+sus posiciones antes del render y los workers reciben la escena inmutable.
+
+La prueba de aventura ejecuta el paseo hasta la salida y comprueba las nueve
+capturas. Otra prueba comprueba bloqueo de agua/borde, y otra verifica tamaño,
+cara y UV del avatar pequeño.
+
 Medición del 27 de septiembre de 2026 con perfil `release`, resolución 640×360 y exactamente la misma cámara, escena, materiales y profundidad recursiva. Se ejecutó un frame de calentamiento y luego se promediaron cinco frames. El equipo expone 12 procesadores lógicos mediante `std::thread::available_parallelism()`.
 
 | Workers | Tiempo promedio | Speedup |
