@@ -3,10 +3,11 @@ mod fresnel;
 mod raytracer;
 mod shading;
 mod skybox;
+mod tile_scheduler;
 mod voxel_intersect;
 
-pub use cpu_renderer::{CpuRenderer, RenderedFrame};
+pub use cpu_renderer::{CpuRenderer, RenderStats, RenderedFrame};
 pub use raytracer::Raytracer;
 pub use shading::Light;
 pub use skybox::{sample_skybox, SceneMode};
-pub use voxel_intersect::{intersect, intersect_with_steps, Face, Hit};
+pub use voxel_intersect::{intersect, intersect_with_steps, occluded, Face, Hit};

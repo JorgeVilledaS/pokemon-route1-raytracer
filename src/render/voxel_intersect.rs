@@ -47,6 +47,72 @@ pub fn intersect(scene: &Scene, ray: &Ray) -> Option<Hit> {
     intersect_with_steps(scene, ray).0
 }
 
+/// Consulta especializada para sombras: atraviesa únicamente el volumen
+/// acotado de la escena y sale en cuanto encuentra un voxel opaco. No calcula
+/// punto, cara, UV ni color del bloqueador.
+pub fn occluded(scene: &Scene, ray: &Ray) -> bool {
+    if scene.width == 0 || scene.height == 0 || scene.depth == 0 {
+        return false;
+    }
+
+    let bounds_max = Vec3::new(scene.width as f64, scene.height as f64, scene.depth as f64);
+    let Some((entry_t, exit_t, _)) = intersect_aabb(ray, Vec3::default(), bounds_max) else {
+        return false;
+    };
+    let mut current_t = entry_t.max(0.0);
+    if exit_t < current_t {
+        return false;
+    }
+
+    let sample_point = ray.at(current_t) + ray.dir * BOUNDARY_NUDGE;
+    let mut cell = [
+        sample_point.x.floor() as i32,
+        sample_point.y.floor() as i32,
+        sample_point.z.floor() as i32,
+    ];
+    let step = [
+        step_for(ray.dir.x),
+        step_for(ray.dir.y),
+        step_for(ray.dir.z),
+    ];
+    let delta_t = [
+        delta_for(ray.dir.x),
+        delta_for(ray.dir.y),
+        delta_for(ray.dir.z),
+    ];
+    let mut next_t = [
+        next_boundary_t(ray.origin.x, ray.dir.x, cell[0], step[0]),
+        next_boundary_t(ray.origin.y, ray.dir.y, cell[1], step[1]),
+        next_boundary_t(ray.origin.z, ray.dir.z, cell[2], step[2]),
+    ];
+
+    while current_t <= exit_t {
+        if cell[0] < 0
+            || cell[1] < 0
+            || cell[2] < 0
+            || cell[0] >= scene.width as i32
+            || cell[1] >= scene.height as i32
+            || cell[2] >= scene.depth as i32
+        {
+            return false;
+        }
+
+        if scene
+            .get(cell[0], cell[1], cell[2])
+            .is_some_and(|voxel| voxel.material != MaterialId::Water)
+        {
+            return true;
+        }
+
+        let axis = smallest_axis(next_t);
+        current_t = next_t[axis];
+        cell[axis] += step[axis];
+        next_t[axis] += delta_t[axis];
+    }
+
+    false
+}
+
 /// Variante instrumentada: el contador indica cuántas celdas visitó el DDA.
 pub fn intersect_with_steps(scene: &Scene, ray: &Ray) -> (Option<Hit>, usize) {
     if scene.width == 0 || scene.height == 0 || scene.depth == 0 {
@@ -274,7 +340,7 @@ fn update_slab(
 
 #[cfg(test)]
 mod tests {
-    use super::{face_uv, intersect, intersect_aabb, intersect_with_steps, Face, Hit};
+    use super::{face_uv, intersect, intersect_aabb, intersect_with_steps, occluded, Face, Hit};
     use crate::core::{Ray, Vec3};
     use crate::materials::MaterialId;
     use crate::scene::{RotationY, Scene, Voxel};
@@ -311,6 +377,23 @@ mod tests {
         let ray = Ray::new(Vec3::new(-1.0, 5.0, 2.0), Vec3::new(1.0, 0.0, 0.0));
 
         assert_eq!(intersect(&scene, &ray), None);
+    }
+
+    #[test]
+    fn shadow_query_ignores_water_and_exits_on_first_opaque_voxel() {
+        let mut scene = Scene::new(4, 1, 1);
+        scene.set(
+            1,
+            0,
+            0,
+            Some(Voxel::new(MaterialId::Water, RotationY::Deg0)),
+        );
+        scene.set(2, 0, 0, Some(grass()));
+        let ray = Ray::new(Vec3::new(-1.0, 0.5, 0.5), Vec3::new(1.0, 0.0, 0.0));
+
+        assert!(occluded(&scene, &ray));
+        scene.set(2, 0, 0, None);
+        assert!(!occluded(&scene, &ray));
     }
 
     #[test]

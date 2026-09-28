@@ -30,7 +30,7 @@ Controles:
 
 Las filas del framebuffer se reparten entre los procesadores lógicos disponibles mediante `std::thread::scope`. Al iniciar, la consola muestra cuántos workers se usan y cuántas scanlines recibe cada uno.
 
-La semilla fija `0x524f_5554_4531` hace que el camino, el césped alto y los árboles procedurales sean reproducibles. El ejecutable imprime por separado el tiempo de generación del terreno y el tiempo de render del frame. Las mediciones de referencia están en [`PERFORMANCE.md`](PERFORMANCE.md).
+La semilla fija `0x524f_5554_4531` hace que el camino, el césped alto y los árboles procedurales sean reproducibles. El ejecutable imprime por separado el tiempo de generación del terreno y el tiempo de render del frame. Las mediciones están en [`PERFORMANCE.md`](PERFORMANCE.md) y la comparación mono/multihilo en [`bitacora.md`](bitacora.md).
 
 Para generar una captura PPM con el mismo renderer sin abrir la ventana:
 
@@ -42,6 +42,12 @@ Para verificar el material emisivo con el cielo y la luz nocturnos:
 
 ```bash
 cargo run --release -- --preview --night
+```
+
+Para medir un frame mono-hilo y multihilo y comprobar que ambos buffers sean idénticos:
+
+```bash
+cargo run --release -- --benchmark
 ```
 
 ## Video final

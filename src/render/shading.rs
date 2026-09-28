@@ -1,6 +1,6 @@
-use super::{intersect, Face, Hit, SceneMode};
+use super::{occluded, Face, Hit, SceneMode};
 use crate::core::{Ray, Vec3};
-use crate::materials::{Material, MaterialId};
+use crate::materials::Material;
 use crate::scene::Scene;
 
 pub const RAY_BIAS: f64 = 1.0e-4;
@@ -97,7 +97,7 @@ fn tangent_basis(face: Face) -> (Vec3, Vec3) {
 pub fn is_shadowed(hit: &Hit, light: &Light, scene: &Scene) -> bool {
     let shadow_origin = hit.point + hit.normal * RAY_BIAS;
     let shadow_ray = Ray::new(shadow_origin, light.direction.normalize());
-    intersect(scene, &shadow_ray).is_some_and(|blocker| blocker.material != MaterialId::Water)
+    occluded(scene, &shadow_ray)
 }
 
 fn component_mul(left: Vec3, right: Vec3) -> Vec3 {

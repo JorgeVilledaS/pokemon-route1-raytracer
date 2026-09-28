@@ -200,7 +200,15 @@ pub fn run(scene: Scene, target: Vec3, materials: MaterialLibrary) -> io::Result
         needs_render |= controls.update(window, delta_seconds);
 
         if needs_render {
-            frame = renderer.render(&scene, &controls.camera(target), &materials, controls.mode);
+            let stats = renderer.render_into(
+                &mut frame.pixels,
+                &scene,
+                &controls.camera(target),
+                &materials,
+                controls.mode,
+            );
+            frame.elapsed = stats.elapsed;
+            frame.total_dda_steps = stats.total_dda_steps;
             rendered_frames += 1;
             needs_render = false;
 

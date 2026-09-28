@@ -31,11 +31,61 @@ fn main() -> io::Result<()> {
     } else {
         SceneMode::Day
     };
+    if arguments.iter().any(|argument| argument == "--benchmark") {
+        benchmark_render(&scene, target, &materials, mode);
+        return Ok(());
+    }
     if arguments.iter().any(|argument| argument == "--preview") {
         return render_preview(&scene, target, &materials, mode);
     }
 
     platform::run(scene, target, materials)
+}
+
+fn benchmark_render(scene: &Scene, target: Vec3, materials: &MaterialLibrary, mode: SceneMode) {
+    const WIDTH: usize = 640;
+    const HEIGHT: usize = 360;
+    const RUNS: u32 = 5;
+
+    let camera = Camera::new(
+        target,
+        45.0_f64.to_radians(),
+        28.0_f64.to_radians(),
+        23.0,
+        60.0,
+        WIDTH as f64 / HEIGHT as f64,
+    );
+    let serial = CpuRenderer::single_threaded(WIDTH, HEIGHT);
+    let parallel = CpuRenderer::new(WIDTH, HEIGHT);
+    let mut serial_pixels = vec![0; WIDTH * HEIGHT];
+    let mut parallel_pixels = vec![0; WIDTH * HEIGHT];
+
+    // Calentamiento: evita atribuir inicialización de páginas al primer modo.
+    serial.render_into(&mut serial_pixels, scene, &camera, materials, mode);
+    parallel.render_into(&mut parallel_pixels, scene, &camera, materials, mode);
+
+    let mut serial_total = Duration::ZERO;
+    let mut parallel_total = Duration::ZERO;
+    for _ in 0..RUNS {
+        serial_total += serial
+            .render_into(&mut serial_pixels, scene, &camera, materials, mode)
+            .elapsed;
+        parallel_total += parallel
+            .render_into(&mut parallel_pixels, scene, &camera, materials, mode)
+            .elapsed;
+    }
+
+    assert_eq!(
+        serial_pixels, parallel_pixels,
+        "serial and parallel frames differ"
+    );
+    let serial_ms = serial_total.as_secs_f64() * 1_000.0 / f64::from(RUNS);
+    let parallel_ms = parallel_total.as_secs_f64() * 1_000.0 / f64::from(RUNS);
+    println!("Benchmark 640x360, average of {RUNS} measured frames:");
+    println!("  1 worker : {serial_ms:.2} ms");
+    println!("  {} workers: {parallel_ms:.2} ms", parallel.worker_count());
+    println!("  speedup  : {:.2}x", serial_ms / parallel_ms);
+    println!("  equality : byte-identical framebuffer");
 }
 
 fn render_preview(
