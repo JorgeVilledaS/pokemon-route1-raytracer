@@ -4,6 +4,9 @@ Proyecto académico que recrea una ruta inspirada en la Ruta 1 de Pokémon como 
 
 La aplicación abre una ventana interactiva donde se puede recorrer la ruta, mover la cámara en 360 grados, acercar o alejar la vista y cambiar entre día y noche.
 
+## Video del funcionamiento
+[ Ver video del funcionamiento](https://www.youtube.com/watch?v=ynFw0PkSKcc)
+
 ## Características
 
 - Ruta alargada de `48 x 80` bloques, con entrada, salida y camino en zigzag.
