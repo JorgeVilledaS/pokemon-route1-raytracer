@@ -1,111 +1,142 @@
-# Diorama Ruta 1 — Raytracer CPU en Rust
+# Ruta 1 — Raytracer en Rust
 
-Diorama inspirado en la Ruta 1 de Pokémon Verde Hoja, renderizado íntegramente en CPU mediante raytracing. El proyecto usa Rust 2021 y solamente la biblioteca estándar.
+Proyecto académico que recrea una ruta inspirada en la Ruta 1 de Pokémon como un diorama de bloques. Todo se dibuja con un raytracer hecho en Rust y ejecutado en CPU.
 
-## Estado
+La aplicación abre una ventana interactiva donde se puede recorrer la ruta, mover la cámara en 360 grados, acercar o alejar la vista y cambiar entre día y noche.
 
-El proyecto incluye matemática vectorial, cámara orbital, escena voxel, intersección DDA, materiales, reflexión/refracción, normal mapping, cielo procedural y una región de terreno Route 1 de 16×16. En Windows se ejecuta en una ventana interactiva con renderizado paralelo exclusivamente en CPU.
+## Características
+
+- Ruta alargada de `48 x 80` bloques, con entrada, salida y camino en zigzag.
+- Árboles, hierba alta, flores, cercas, desniveles, agua y letreros.
+- Personaje pequeño con apariencia inicial de Poké Ball.
+- Nueve encuentros colocados a lo largo del recorrido.
+- Al tocar un encuentro, el personaje captura y puede usar esa nueva apariencia.
+- Cámara orbital libre, zoom y modo de seguimiento.
+- Ciclo visual de día y noche.
+- Texturas pixel art con filtrado bilineal y repetición.
+- Sombras, iluminación Blinn-Phong, reflejos, refracción, Fresnel, mapas normales y materiales emisivos.
+- Cielo procedural con gradiente y nubes.
+- Terreno procedural determinista: la misma semilla produce el mismo resultado.
+- Intersección de voxeles mediante DDA, sin revisar todos los cubos uno por uno.
+- Render paralelo por franjas usando todos los núcleos disponibles del procesador.
 
 ## Requisitos
 
+- Windows 10 u 11.
 - Rust estable con Cargo.
-- Windows para la ventana interactiva nativa.
-- `ffmpeg` opcional, únicamente para convertir frames PPM a video.
+- No se usan crates externos; el proyecto depende únicamente de la biblioteca estándar.
 
-## Uso
+## Ejecutar
 
-```bash
+Desde la carpeta del proyecto:
+
+```powershell
 cargo run --release
 ```
 
-El ejecutable abre una ventana de 960×540. El raytracer trabaja internamente a 480×270 y escala el resultado con GDI para mantener una interacción fluida sin utilizar la GPU para el trazado.
+Se recomienda usar siempre `--release`, porque el raytracer realiza muchos cálculos por cuadro.
 
-Controles:
+## Controles
 
-- La partida comienza directamente como Poké Ball, sin pantalla de selección.
-- `WASD`: caminar relativo a la orientación de la cámara. En la vista inicial, `W` avanza hacia el final.
-- `Espacio`: activar/desactivar recorrido automático por el camino; caminar manualmente lo cancela.
-- Tocar un encuentro captura su apariencia. `1`/`2`/`3` equipan apariencias ya capturadas.
-- Arrastrar con el botón izquierdo o flechas: orbitar libremente.
-- Rueda del mouse o `Q`/`E`: acercar y alejar.
-- `Tab`: alternar cámara de seguimiento y vista general de la ruta.
-- `N`: alternar día y noche.
-- `P`: reiniciar la partida y los encuentros.
-- `R`: restablecer la cámara.
-- `Esc`: cerrar.
+| Control | Acción |
+| --- | --- |
+| `W`, `A`, `S`, `D` | Mover al personaje con respecto a la cámara |
+| `Espacio` | Activar o detener el recorrido automático |
+| `1`, `2`, `3` | Usar una apariencia capturada |
+| Arrastrar con el mouse | Girar la cámara libremente |
+| Flechas | Girar la cámara con el teclado |
+| Rueda del mouse | Acercar o alejar la vista |
+| `Q`, `E` | Zoom con el teclado |
+| `Tab` | Alternar entre cámara de seguimiento y vista general |
+| `N` | Cambiar entre día y noche |
+| `P` | Reiniciar la partida |
+| `R` | Restablecer la cámara |
+| `Esc` | Cerrar la aplicación |
 
-La ruta mide 48×80 bloques y sigue la distribución de las referencias: camino en
-zigzag, franjas de hierba, escalones laterales, árboles perimetrales y cerca inferior
-con abertura central. Incluye entrada, salida, nueve encuentros reproducibles,
-estanques, flores, copas escalonadas y una región procedural 16×16. El avatar mide
-0.62 bloques y usa intersección analítica con una caja pequeña, además del DDA del
-terreno. Sus colisiones consultan cuatro esquinas sobre el suelo; no hay saltos ni
-física de cuerpos rígidos. Las terrazas decorativas laterales son obstáculos.
-El paseo automático está diseñado para el corredor principal; si lo activas fuera
-de él y encuentras un obstáculo, vuelve al camino con WASD.
+El objetivo sencillo es entrar por la parte inferior, recorrer la ruta hasta la salida superior y encontrar las nueve criaturas.
 
-Tus sprites van en `assets/textures/characters/starter_1.ppm`, `starter_2.ppm` y
-`starter_3.ppm` (PPM RGB, preferiblemente 32×32). Puedes cambiar cada cara con
-los sufijos `_front`, `_back`, `_left`, `_right`, `_top`, `_bottom`.
-Consulta [las instrucciones de personajes](assets/textures/characters/README.md).
-Hay apariencias provisionales si no colocas archivos.
+## Apariencias personalizadas
 
-Para convertir tus PNG opacos:
+Las imágenes del personaje se colocan en:
+
+```text
+assets/textures/characters/
+```
+
+Los archivos principales son:
+
+```text
+pokeball.ppm
+starter_1.ppm
+starter_2.ppm
+starter_3.ppm
+```
+
+Formato recomendado: PPM `P6`, cuadrado, de `16 x 16` o `32 x 32` píxeles.
+
+
+Ejemplo: `starter_1_front.ppm`. Si una cara no tiene archivo propio, se usa la imagen principal o una apariencia provisional generada por el programa.
+
+## Comandos útiles
+
+Generar una vista previa de la ruta:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/png_to_ppm.ps1 -InputPath mi_sprite.png -OutputPath assets/textures/characters/starter_1.ppm
+cargo run --release -- --preview --overview
 ```
 
-Capturas: `--preview --overview` encuadra la ruta completa. `--preview --night` conserva la demostración nocturna.
+Generar una vista previa nocturna:
 
-Las filas del framebuffer se reparten entre los procesadores lógicos disponibles mediante `std::thread::scope`. Al iniciar, la consola muestra cuántos workers se usan y cuántas scanlines recibe cada uno.
-
-El camino, los escalones y los árboles principales siguen la distribución de las imágenes de referencia. La región procedural usa la semilla fija `0x524f_5554_4531`; los encuentros usan `42`. El ejecutable imprime por separado el tiempo de generación del terreno y el tiempo de render del frame. Las mediciones históricas están en [`PERFORMANCE.md`](PERFORMANCE.md) y [`bitacora.md`](bitacora.md).
-
-Para generar una captura PPM con el mismo renderer sin abrir la ventana:
-
-```bash
-cargo run --release -- --preview
-```
-
-Para verificar el material emisivo con el cielo y la luz nocturnos:
-
-```bash
+```powershell
 cargo run --release -- --preview --night
 ```
 
-Para renderizar los nueve materiales aislados en una cuadrícula de cubos:
+Generar una lámina con las texturas:
 
-```bash
+```powershell
 cargo run --release -- --texture-preview
 ```
 
-El set original de texturas 32×32 se reconstruye de forma determinista con:
+Medir el rendimiento monohilo y multihilo:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/generate_textures.ps1
-```
-
-La procedencia completa está en [`assets/TEXTURE_CREDITS.md`](assets/TEXTURE_CREDITS.md).
-
-Para medir un frame mono-hilo y multihilo y comprobar que ambos buffers sean idénticos:
-
-```bash
 cargo run --release -- --benchmark
 ```
 
-## Video final
+Ejecutar las pruebas y revisar el código:
 
-> Se agregará aquí el enlace o reproductor del video final cuando termine el diorama.
+```powershell
+cargo test --release
+cargo clippy --release -- -D warnings
+```
 
-## Restricciones de diseño
+La entrega fue verificada con 44 pruebas unitarias. El benchmark también comprueba que el resultado monohilo y multihilo sea idéntico.
 
-- Sin crates externos.
-- Renderizado en CPU; no se usa GPU para el raytracing.
-- Presentación de la imagen mediante Win32/GDI enlazado directamente con FFI.
-- Imágenes intermedias en formato PPM P6.
-- Paralelismo con `std::thread`.
+## Estructura principal
 
-## Créditos
+```text
+src/core/       Vectores, rayos, cámara e imagen PPM
+src/scene/      Voxeles, ruta, terreno y jugabilidad
+src/materials/  Materiales y biblioteca de texturas
+src/render/     DDA, iluminación, trazado y paralelismo
+src/platform/   Ventana y controles de Windows
+src/utils/      Carga de texturas y ruido procedural
+assets/         Texturas y apariencias del personaje
+tools/          Herramientas auxiliares para los assets
+```
 
-Pokémon y sus elementos visuales pertenecen a Nintendo, Game Freak y The Pokémon Company. Este es un proyecto académico no comercial.
+## Decisiones de rendimiento
+
+- El render trabaja a una resolución interna menor y escala la imagen en la ventana.
+- Cada hilo escribe solamente sus propias líneas del framebuffer, por lo que no necesita `Mutex`.
+- El DDA entra primero al límite de la escena y termina apenas encuentra un bloque.
+- Los rayos de sombra se detienen en el primer obstáculo.
+- No se crean vectores ni buffers nuevos dentro del ciclo de cada píxel.
+- La cámara y la escena se comparten como referencias inmutables entre hilos.
+
+## Limitaciones
+
+- La ventana interactiva usa la API nativa de Windows.
+- El personaje camina sobre el terreno, pero no incluye saltos ni física compleja.
+- El recorrido automático está pensado para el camino principal; el movimiento manual permite explorar libremente.
+- El rendimiento depende de la cantidad de núcleos y de la velocidad del procesador.
